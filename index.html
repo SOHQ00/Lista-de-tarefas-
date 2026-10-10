@@ -4,8 +4,8 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Lista de Tarefas moderna, intuitiva e produtiva com categorização, prioridades, calendário e métricas de desempenho." />
-    <meta name="theme-color" content="#ffffff" />
+    <meta name="description" content="TaskFlow - Lista de Tarefas moderna com autenticação Supabase, perfis de usuário e sincronização em tempo real." />
+    <meta name="theme-color" content="#2563eb" />
     <title>TaskFlow • Lista de Tarefas Moderna</title>
     
     <!-- Google Fonts: Plus Jakarta Sans & Inter -->
@@ -14,7 +14,38 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet" />
   </head>
   <body class="h-full text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
-    <div id="root" class="min-h-full flex flex-col"></div>
+    <noscript>
+      <div style="padding: 2rem; font-family: sans-serif; text-align: center; color: #1e293b;">
+        <h2>JavaScript necessário</h2>
+        <p>Por favor, habilite o JavaScript no seu navegador para executar o TaskFlow.</p>
+      </div>
+    </noscript>
+
+    <div id="root" class="min-h-full flex flex-col">
+      <!-- Fallback visual exibido enquanto o bundle carrega ou se o servidor Vite não estiver conectado -->
+      <div id="loading-placeholder" style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #f8fafc; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; color: #334155; padding: 1.5rem;">
+        <div style="width: 56px; height: 56px; border-radius: 16px; background: linear-gradient(135deg, #2563eb, #6366f1); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 24px; box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.3); margin-bottom: 16px;">
+          ✓
+        </div>
+        <div style="font-size: 20px; font-weight: 800; color: #0f172a; margin-bottom: 6px; letter-spacing: -0.025em;">
+          TaskFlow
+        </div>
+        <div style="font-size: 14px; color: #64748b; font-weight: 500;">
+          Carregando aplicação...
+        </div>
+        <div id="server-instruction" style="display: none; margin-top: 24px; max-width: 360px; text-align: center; font-size: 13px; line-height: 1.5; color: #64748b; background: white; padding: 16px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+          <strong style="color: #0f172a; display: block; margin-bottom: 4px;">Acesso ao Servidor Local</strong>
+          Esta aplicação utiliza o Vite. Certifique-se de acessar pelo endereço <a href="http://localhost:3000" style="color: #2563eb; font-weight: 600; text-decoration: underline;">http://localhost:3000</a> e executar o comando <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 6px; font-weight: 600; color: #334155;">npm run dev</code> no terminal.
+        </div>
+      </div>
+      <script>
+        setTimeout(function() {
+          var el = document.getElementById('server-instruction');
+          if (el) el.style.display = 'block';
+        }, 2500);
+      </script>
+    </div>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

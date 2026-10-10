@@ -36,6 +36,12 @@ export function AuthProvider({ children }) {
       }
     } catch (err) {
       console.warn('Erro ao carregar perfil:', err);
+      setProfile({
+        id: currentUser.id,
+        email: currentUser.email,
+        full_name: currentUser.email?.split('@')[0] || 'Usuário',
+        avatar_url: null,
+      });
     }
   }, []);
 
@@ -45,15 +51,24 @@ export function AuthProvider({ children }) {
 
     // Detecta se a URL contém hash de recuperação de senha (type=recovery)
     if (typeof window !== 'undefined' && window.location.hash) {
-      const hashParams = new URLSearchParams(window.location.hash.substring(1));
-      if (hashParams.get('type') === 'recovery') {
-        setIsPasswordRecovery(true);
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        if (hashParams.get('type') === 'recovery') {
+          setIsPasswordRecovery(true);
+        }
+      } catch (e) {
+        console.warn('Erro ao ler hash da URL:', e);
       }
     }
 
     const initAuth = async () => {
       try {
-        const currentSession = await authService.getSession();
+        // Timeout de segurança de 3 segundos para nunca travar a aplicação em loading
+        const sessionPromise = authService.getSession();
+        const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 3000));
+        
+        const currentSession = await Promise.race([sessionPromise, timeoutPromise]);
+        
         if (isMounted) {
           setSession(currentSession);
           const currentUser = currentSession?.user || null;
@@ -74,26 +89,32 @@ export function AuthProvider({ children }) {
     initAuth();
 
     // Inscreve-se em mudanças de autenticação
-    const { data: { subscription } } = authService.onAuthStateChange(async (event, newSession) => {
-      if (!isMounted) return;
+    let subscription = null;
+    try {
+      const subRes = authService.onAuthStateChange(async (event, newSession) => {
+        if (!isMounted) return;
 
-      setSession(newSession);
-      const currentUser = newSession?.user || null;
-      setUser(currentUser);
+        setSession(newSession);
+        const currentUser = newSession?.user || null;
+        setUser(currentUser);
 
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
-      }
-
-      if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
-        if (currentUser) {
-          await fetchProfile(currentUser);
+        if (event === 'PASSWORD_RECOVERY') {
+          setIsPasswordRecovery(true);
         }
-      } else if (event === 'SIGNED_OUT') {
-        setProfile(null);
-        setIsPasswordRecovery(false);
-      }
-    });
+
+        if (event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+          if (currentUser) {
+            await fetchProfile(currentUser);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setProfile(null);
+          setIsPasswordRecovery(false);
+        }
+      });
+      subscription = subRes?.data?.subscription || null;
+    } catch (subErr) {
+      console.warn('Não foi possível registrar listener de auth:', subErr);
+    }
 
     return () => {
       isMounted = false;
@@ -129,7 +150,11 @@ export function AuthProvider({ children }) {
 
   // Logout
   const logout = useCallback(async () => {
-    await authService.signOut();
+    try {
+      await authService.signOut();
+    } catch (e) {
+      console.warn('Erro ao deslogar:', e);
+    }
     setUser(null);
     setSession(null);
     setProfile(null);
