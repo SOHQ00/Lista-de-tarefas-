@@ -1,3 +1,3 @@
 usuario: SOHQ00
 email: sophiaamaralsv@gmail.com
-repositorio: https://github.com/SOHQ00/lista-tarefas.git
+repositorio: https://github.com/SOHQ00/Lista-de-tarefas-.git

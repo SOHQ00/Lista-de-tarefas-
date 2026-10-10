@@ -1,6 +1,6 @@
-const STORAGE_KEY = 'taskflow_tasks_v1';
+const getStorageKey = (userId) => `taskflow_tasks_${userId || 'guest'}_v1`;
 
-// Helper to format ISO date strings for today / tomorrow / upcoming
+// Helper para formatar datas ISO relativas
 const getRelativeDateStr = (daysOffset) => {
   const d = new Date();
   d.setDate(d.getDate() + daysOffset);
@@ -55,7 +55,7 @@ export const INITIAL_TASKS = [
     description: 'Pesquisar opções online com entrega expressa.',
     category: 'PESSOAL',
     priority: 'BAIXA',
-    dueDate: getRelativeDateStr(-1), // Atrasada para teste de badge
+    dueDate: getRelativeDateStr(-1),
     completed: false,
     createdAt: new Date(Date.now() - 3600000 * 72).toISOString(),
   },
@@ -73,25 +73,29 @@ export const INITIAL_TASKS = [
 ];
 
 export const storageService = {
-  getTasks: () => {
+  getTasks: (userId = null) => {
     try {
       if (typeof localStorage === 'undefined') return INITIAL_TASKS;
-      const data = localStorage.getItem(STORAGE_KEY);
+      const key = getStorageKey(userId);
+      const data = localStorage.getItem(key);
       if (!data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_TASKS));
-        return INITIAL_TASKS;
+        // Se for guest ou novo usuário, pode inicializar com vazio se autenticado
+        const initial = userId ? [] : INITIAL_TASKS;
+        localStorage.setItem(key, JSON.stringify(initial));
+        return initial;
       }
       return JSON.parse(data);
     } catch (err) {
       console.error('Erro ao ler tarefas do LocalStorage:', err);
-      return INITIAL_TASKS;
+      return [];
     }
   },
 
-  saveTasks: (tasks) => {
+  saveTasks: (tasks, userId = null) => {
     try {
       if (typeof localStorage === 'undefined') return false;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+      const key = getStorageKey(userId);
+      localStorage.setItem(key, JSON.stringify(tasks));
       return true;
     } catch (err) {
       console.error('Erro ao salvar tarefas no LocalStorage:', err);
@@ -99,21 +103,22 @@ export const storageService = {
     }
   },
 
-  createTask: (newTask) => {
-    const tasks = storageService.getTasks();
+  createTask: (newTask, userId = null) => {
+    const tasks = storageService.getTasks(userId);
     const task = {
       id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       createdAt: new Date().toISOString(),
       completed: false,
+      userId,
       ...newTask,
     };
     const updated = [task, ...tasks];
-    storageService.saveTasks(updated);
+    storageService.saveTasks(updated, userId);
     return task;
   },
 
-  updateTask: (id, updates) => {
-    const tasks = storageService.getTasks();
+  updateTask: (id, updates, userId = null) => {
+    const tasks = storageService.getTasks(userId);
     const updated = tasks.map((t) => {
       if (t.id === id) {
         return {
@@ -126,24 +131,24 @@ export const storageService = {
       }
       return t;
     });
-    storageService.saveTasks(updated);
+    storageService.saveTasks(updated, userId);
     return updated.find((t) => t.id === id);
   },
 
-  deleteTask: (id) => {
-    const tasks = storageService.getTasks();
+  deleteTask: (id, userId = null) => {
+    const tasks = storageService.getTasks(userId);
     const updated = tasks.filter((t) => t.id !== id);
-    storageService.saveTasks(updated);
+    storageService.saveTasks(updated, userId);
     return true;
   },
 
-  resetToDefaults: () => {
-    storageService.saveTasks(INITIAL_TASKS);
+  resetToDefaults: (userId = null) => {
+    storageService.saveTasks(INITIAL_TASKS, userId);
     return INITIAL_TASKS;
   },
 
-  clearAllTasks: () => {
-    storageService.saveTasks([]);
+  clearAllTasks: (userId = null) => {
+    storageService.saveTasks([], userId);
     return [];
   }
 };

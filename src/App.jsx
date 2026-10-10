@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from './context/AuthContext';
 import { useTasks } from './hooks/useTasks';
 import { Navbar } from './components/Navbar';
 import { TaskFilters } from './components/TaskFilters';
@@ -7,9 +8,37 @@ import { TaskModal } from './components/TaskModal';
 import { AnalyticsView } from './components/AnalyticsView';
 import { CalendarView } from './components/CalendarView';
 import { ConfirmModal } from './components/ConfirmModal';
-import { Plus, Sparkles, CheckCircle, Flame, Calendar as CalendarIcon, ArrowRight, Loader2 } from 'lucide-react';
+import { ProfileModal } from './components/ProfileModal';
+import { AuthView } from './components/Auth/AuthView';
+import { Plus, Loader2, CheckSquare, Sparkles } from 'lucide-react';
 
 export function App() {
+  const { user, profile, isAuthenticated, isLoading: isAuthLoading, isPasswordRecovery } = useAuth();
+
+  // Se não estiver autenticado ou em recuperação de senha, exibe a tela de Login / Recuperação
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-xl shadow-brand-500/25 mb-4 animate-bounce">
+          <CheckSquare className="w-8 h-8 stroke-[2.5]" />
+        </div>
+        <div className="flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <Loader2 className="w-4 h-4 animate-spin text-brand-600" />
+          <span>Verificando sessão no Supabase...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated || isPasswordRecovery) {
+    return <AuthView />;
+  }
+
+  return <AuthenticatedApp user={user} profile={profile} />;
+}
+
+// Aplicação principal após o usuário estar autenticado
+function AuthenticatedApp({ user, profile }) {
   const {
     tasks,
     filteredTasks,
@@ -34,10 +63,11 @@ export function App() {
     toggleTaskCompletion,
     resetToDefaultTasks,
     clearAllTasks,
-  } = useTasks();
+  } = useTasks(user?.id);
 
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   // Confirm Modal state
   const [confirmModal, setConfirmModal] = useState({
@@ -49,6 +79,8 @@ export function App() {
     variant: 'danger',
     onConfirm: () => {},
   });
+
+  const firstName = (profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário').split(' ')[0];
 
   const handleOpenNewTask = (initialDueDate = null) => {
     setEditingTask(initialDueDate ? { dueDate: initialDueDate } : null);
@@ -72,19 +104,19 @@ export function App() {
     setConfirmModal({
       isOpen: true,
       title: 'Excluir Tarefa',
-      message: `Tem certeza que deseja excluir a tarefa "${title}"? A tarefa será removida do Supabase.`,
+      message: `Tem certeza que deseja excluir a tarefa "${title}"? A tarefa será removida do seu perfil no Supabase.`,
       confirmLabel: 'Excluir',
       variant: 'danger',
       onConfirm: () => deleteTask(id),
     });
   };
 
-  const handleOpenLogoutModal = () => {
+  const handleOpenResetModal = () => {
     setConfirmModal({
       isOpen: true,
-      title: 'Restaurar Dados / Banco',
-      message: 'Deseja restaurar as tarefas padrões de demonstração no Supabase?',
-      confirmLabel: 'Restaurar Dados Demo',
+      title: 'Restaurar Tarefas Padrão',
+      message: 'Deseja recriar as tarefas de demonstração no seu perfil do Supabase?',
+      confirmLabel: 'Restaurar Tarefas',
       cancelLabel: 'Cancelar',
       variant: 'warning',
       onConfirm: () => {
@@ -96,12 +128,13 @@ export function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 selection:bg-brand-500 selection:text-white">
       
-      {/* Top Navbar */}
+      {/* Top Navbar com perfil do usuário */}
       <Navbar
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onOpenNewTask={() => handleOpenNewTask()}
-        onOpenLogoutModal={handleOpenLogoutModal}
+        onOpenLogoutModal={handleOpenResetModal}
+        onOpenProfileModal={() => setIsProfileModalOpen(true)}
         pendingCount={stats.pendingCount}
         isCloudEnabled={isCloudEnabled}
         isSyncing={isSyncing}
@@ -114,13 +147,18 @@ export function App() {
         {/* Dynamic Header Banner */}
         <div className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-xs font-bold text-brand-600 uppercase tracking-wider bg-brand-50 px-2.5 py-0.5 rounded-md border border-brand-100">
+                Olá, {firstName}! 👋
+              </span>
+            </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight font-sans">
               {activeTab === 'tasks' && 'Minhas Tarefas'}
               {activeTab === 'analytics' && 'Dashboard de Produtividade'}
               {activeTab === 'calendar' && 'Calendário de Atividades'}
             </h1>
             <p className="mt-1 text-sm text-slate-500">
-              {activeTab === 'tasks' && 'Organize, priorize e acompanhe todas as suas atividades salvas no Supabase.'}
+              {activeTab === 'tasks' && 'Suas tarefas individuais seguras no Supabase com isolamento de perfil.'}
               {activeTab === 'analytics' && 'Acompanhe seu progresso, taxas de conclusão e métricas de desempenho.'}
               {activeTab === 'calendar' && 'Visualize suas entregas organizadas por data de vencimento.'}
             </p>
@@ -240,12 +278,19 @@ export function App() {
         variant={confirmModal.variant}
       />
 
+      {/* Profile Modal */}
+      <ProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        stats={stats}
+      />
+
       {/* Footer */}
       <footer className="mt-auto py-6 border-t border-slate-200/60 bg-white/60 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© {new Date().getFullYear()} TaskFlow • Conectado ao Supabase (lista-tarefas)</p>
+          <p>© {new Date().getFullYear()} TaskFlow • Conectado ao Supabase com Autenticação e RLS</p>
           <p className="flex items-center gap-1">
-            Desenvolvido com <span className="text-rose-500">♥</span> em React + Tailwind CSS
+            Conectado como <strong className="text-slate-600">{user?.email}</strong>
           </p>
         </div>
       </footer>

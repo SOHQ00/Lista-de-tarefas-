@@ -3,9 +3,9 @@ import { taskService } from '../services/taskService';
 import { storageService } from '../services/storageService';
 import confetti from 'canvas-confetti';
 
-export function useTasks() {
-  // Inicializa com dados locais para não ter tela em branco no 1º frame
-  const [tasks, setTasks] = useState(() => storageService.getTasks());
+export function useTasks(userId = null) {
+  // Inicializa com dados locais isolados pelo userId
+  const [tasks, setTasks] = useState(() => storageService.getTasks(userId));
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [filter, setFilter] = useState('all'); // 'all' | 'pending' | 'completed'
@@ -14,11 +14,11 @@ export function useTasks() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' | 'analytics' | 'calendar'
 
-  // Carregar tarefas do Supabase no início
+  // Carregar tarefas do Supabase no início ou quando userId mudar
   const loadTasks = useCallback(async (showLoading = false) => {
     if (showLoading) setIsLoading(true);
     try {
-      const data = await taskService.getTasks();
+      const data = await taskService.getTasks(userId);
       if (Array.isArray(data)) {
         setTasks(data);
       }
@@ -28,20 +28,20 @@ export function useTasks() {
       if (showLoading) setIsLoading(false);
       setIsSyncing(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     loadTasks(true);
 
     // Configurar escuta em tempo real do Supabase
-    const unsubscribe = taskService.subscribeToChanges(() => {
+    const unsubscribe = taskService.subscribeToChanges(userId, () => {
       loadTasks(false);
     });
 
     return () => {
       if (typeof unsubscribe === 'function') unsubscribe();
     };
-  }, [loadTasks]);
+  }, [loadTasks, userId]);
 
   const triggerCelebration = useCallback(() => {
     try {
@@ -61,6 +61,7 @@ export function useTasks() {
     const tempId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const optimisticTask = {
       id: tempId,
+      userId,
       title: taskData.title.trim(),
       description: taskData.description ? taskData.description.trim() : '',
       category: taskData.category || 'GERAL',
@@ -76,7 +77,7 @@ export function useTasks() {
     setIsSyncing(true);
 
     try {
-      const created = await taskService.createTask(optimisticTask);
+      const created = await taskService.createTask(optimisticTask, userId);
       if (created) {
         setTasks(prev => prev.map(t => (t.id === tempId ? created : t)));
       }
@@ -87,7 +88,7 @@ export function useTasks() {
     }
 
     return optimisticTask;
-  }, []);
+  }, [userId]);
 
   // Atualizar tarefa (Atualização otimista + Supabase)
   const updateTask = useCallback(async (id, updates) => {
@@ -115,13 +116,13 @@ export function useTasks() {
 
     setIsSyncing(true);
     try {
-      await taskService.updateTask(id, updates);
+      await taskService.updateTask(id, updates, userId);
     } catch (err) {
       console.error('Erro ao atualizar no Supabase:', err);
     } finally {
       setIsSyncing(false);
     }
-  }, [triggerCelebration]);
+  }, [userId, triggerCelebration]);
 
   // Alternar conclusão
   const toggleTaskCompletion = useCallback(async (id) => {
@@ -144,52 +145,52 @@ export function useTasks() {
 
     setIsSyncing(true);
     try {
-      await taskService.updateTask(id, updates);
+      await taskService.updateTask(id, updates, userId);
     } catch (err) {
       console.error('Erro ao atualizar status no Supabase:', err);
     } finally {
       setIsSyncing(false);
     }
-  }, [tasks, triggerCelebration]);
+  }, [tasks, userId, triggerCelebration]);
 
   // Excluir tarefa (Otimista + Supabase)
   const deleteTask = useCallback(async (id) => {
     setTasks(prev => prev.filter(t => t.id !== id));
     setIsSyncing(true);
     try {
-      await taskService.deleteTask(id);
+      await taskService.deleteTask(id, userId);
     } catch (err) {
       console.error('Erro ao excluir no Supabase:', err);
     } finally {
       setIsSyncing(false);
     }
-  }, []);
+  }, [userId]);
 
-  // Restaurar dados padrão de demonstração
+  // Restaurar dados padrão de demonstração para este usuário
   const resetToDefaultTasks = useCallback(async () => {
     setIsLoading(true);
     try {
-      const defaults = await taskService.resetToDefaults();
+      const defaults = await taskService.resetToDefaults(userId);
       setTasks(defaults);
     } catch (err) {
       console.error('Erro ao restaurar tarefas:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
-  // Limpar todas as tarefas
+  // Limpar todas as tarefas do usuário
   const clearAllTasks = useCallback(async () => {
     setIsLoading(true);
     try {
-      await taskService.clearAllTasks();
+      await taskService.clearAllTasks(userId);
       setTasks([]);
     } catch (err) {
       console.error('Erro ao limpar tarefas:', err);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   // Tarefas filtradas e ordenadas
   const filteredTasks = useMemo(() => {

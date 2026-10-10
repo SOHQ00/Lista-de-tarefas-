@@ -1,17 +1,34 @@
 import React, { useState } from 'react';
-import { CheckSquare, BarChart3, Calendar, LogOut, Menu, X, Plus, Sparkles, Database, Cloud, RefreshCw } from 'lucide-react';
+import {
+  CheckSquare,
+  BarChart3,
+  Calendar,
+  LogOut,
+  Menu,
+  X,
+  Plus,
+  Sparkles,
+  Database,
+  RefreshCw,
+  User,
+  ChevronDown
+} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export function Navbar({
   activeTab,
   onTabChange,
   onOpenNewTask,
   onOpenLogoutModal,
+  onOpenProfileModal,
   pendingCount,
   isCloudEnabled = true,
   isSyncing = false,
   onRefresh
 }) {
+  const { user, profile, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
   const navItems = [
     { id: 'tasks', label: 'Tarefas', icon: CheckSquare, badge: pendingCount > 0 ? pendingCount : null },
@@ -23,6 +40,15 @@ export function Navbar({
     onTabChange(tabId);
     setMobileMenuOpen(false);
   };
+
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário';
+  const displayEmail = user?.email || '';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(p => p[0]?.toUpperCase())
+    .join('') || 'U';
 
   return (
     <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
@@ -38,10 +64,10 @@ export function Navbar({
               <div className="flex items-center gap-2">
                 <span className="text-lg font-bold text-slate-900 tracking-tight font-sans">TaskFlow</span>
                 <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700 border border-brand-200">
-                  <Sparkles size={10} className="mr-1 text-brand-500" /> Pro
+                  <Sparkles size={10} className="mr-1 text-brand-500" /> Supabase
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">Gestão inteligente com Supabase</p>
+              <p className="text-xs text-slate-500 hidden sm:block">Gestão de tarefas com autenticação</p>
             </div>
           </div>
 
@@ -80,7 +106,7 @@ export function Navbar({
             
             {/* Supabase Status Pill */}
             <div
-              title={isCloudEnabled ? 'Sincronização em tempo real ativa no Supabase (projeto: lista-tarefas)' : 'Modo Offline (LocalStorage)'}
+              title={isCloudEnabled ? 'Sincronização com Supabase (RLS ativo para seu usuário)' : 'Modo Offline'}
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all ${
                 isCloudEnabled
                   ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-800 shadow-2xs'
@@ -109,23 +135,93 @@ export function Navbar({
 
             <div className="h-6 w-px bg-slate-200 mx-1" />
 
-            {/* Logout / Reset Button */}
-            <button
-              id="btn-logout"
-              onClick={onOpenLogoutModal}
-              title="Sair / Redefinir sessão"
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-150"
-            >
-              <LogOut size={16} />
-              <span>Sair</span>
-            </button>
+            {/* User Profile Pill & Dropdown */}
+            <div className="relative">
+              <button
+                id="btn-user-profile-menu"
+                onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                className="flex items-center gap-2.5 p-1.5 pl-2 pr-3 rounded-2xl hover:bg-slate-100/80 border border-slate-200/70 transition-all duration-150 group"
+              >
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                  {initials}
+                </div>
+                <div className="text-left hidden lg:block max-w-[120px]">
+                  <div className="text-xs font-bold text-slate-800 truncate leading-tight">
+                    {displayName}
+                  </div>
+                  <div className="text-[10px] text-slate-400 truncate leading-tight">
+                    {displayEmail}
+                  </div>
+                </div>
+                <ChevronDown size={14} className="text-slate-400 group-hover:text-slate-600 transition-transform duration-150" />
+              </button>
+
+              {/* Dropdown Menu */}
+              {userDropdownOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setUserDropdownOpen(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-2 z-50 animate-scale-in">
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <div className="text-xs font-bold text-slate-900 truncate">{displayName}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{displayEmail}</div>
+                    </div>
+
+                    <button
+                      id="dropdown-open-profile"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onOpenProfileModal();
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-brand-600 flex items-center gap-2"
+                    >
+                      <User size={15} />
+                      <span>Meu Perfil</span>
+                    </button>
+
+                    <button
+                      id="dropdown-reset-data"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        onOpenLogoutModal();
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2"
+                    >
+                      <RefreshCw size={15} />
+                      <span>Restaurar Tarefas Demo</span>
+                    </button>
+
+                    <div className="my-1 border-t border-slate-100" />
+
+                    <button
+                      id="dropdown-logout"
+                      onClick={() => {
+                        setUserDropdownOpen(false);
+                        logout();
+                      }}
+                      className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 flex items-center gap-2"
+                    >
+                      <LogOut size={15} />
+                      <span>Sair da Conta</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
           </div>
 
           {/* Mobile Menu Trigger */}
           <div className="flex md:hidden items-center gap-2">
-            {isCloudEnabled && (
-              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" title="Supabase Online" />
-            )}
+            <button
+              onClick={onOpenProfileModal}
+              className="w-8 h-8 rounded-lg bg-brand-600 text-white flex items-center justify-center text-xs font-bold shadow-xs"
+              title="Meu Perfil"
+            >
+              {initials}
+            </button>
             <button
               onClick={onOpenNewTask}
               className="p-2 text-white bg-brand-600 rounded-lg shadow-sm"
@@ -149,6 +245,27 @@ export function Navbar({
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-slate-200 bg-white px-4 pt-3 pb-4 space-y-2 shadow-lg animate-fade-in">
           
+          {/* User Info Bar */}
+          <div
+            onClick={() => {
+              setMobileMenuOpen(false);
+              onOpenProfileModal();
+            }}
+            className="p-3 bg-slate-50 rounded-xl flex items-center justify-between border border-slate-200/60 cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold text-xs">
+                {initials}
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-900 truncate">{displayName}</div>
+                <div className="text-[11px] text-slate-500 truncate">{displayEmail}</div>
+              </div>
+            </div>
+            <span className="text-[11px] font-semibold text-brand-600">Ver Perfil</span>
+          </div>
+
+          {/* Cloud Status */}
           <div className="px-3 py-2 bg-emerald-50 rounded-lg flex items-center justify-between text-xs font-semibold text-emerald-800 mb-2 border border-emerald-100">
             <span className="flex items-center gap-1.5">
               <Database size={14} className="text-emerald-600" />
@@ -183,16 +300,27 @@ export function Navbar({
             );
           })}
 
-          <div className="pt-2 border-t border-slate-100">
+          <div className="pt-2 border-t border-slate-100 flex flex-col gap-1.5">
             <button
               onClick={() => {
                 setMobileMenuOpen(false);
                 onOpenLogoutModal();
               }}
-              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium text-rose-600 hover:bg-rose-50"
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <RefreshCw size={16} />
+              <span>Restaurar Tarefas Demo</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                logout();
+              }}
+              className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-bold text-rose-600 hover:bg-rose-50"
             >
               <LogOut size={18} />
-              <span>Sair / Redefinir</span>
+              <span>Sair da Conta</span>
             </button>
           </div>
         </div>
@@ -200,3 +328,5 @@ export function Navbar({
     </header>
   );
 }
+
+export default Navbar;

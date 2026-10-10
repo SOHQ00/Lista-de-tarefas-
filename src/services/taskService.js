@@ -8,6 +8,7 @@ export function mapTaskFromDb(row) {
   if (!row) return null;
   return {
     id: row.id,
+    userId: row.user_id || null,
     title: row.title || '',
     description: row.description || '',
     category: row.category || 'GERAL',
@@ -22,9 +23,12 @@ export function mapTaskFromDb(row) {
 /**
  * Converte um objeto de tarefa do app (camelCase) para o formato do banco de dados (snake_case)
  */
-export function mapTaskToDb(task) {
+export function mapTaskToDb(task, defaultUserId = null) {
   const payload = {};
   if (task.id !== undefined) payload.id = task.id;
+  if (task.userId !== undefined || defaultUserId) {
+    payload.user_id = task.userId || defaultUserId;
+  }
   if (task.title !== undefined) payload.title = task.title.trim();
   if (task.description !== undefined) payload.description = task.description ? task.description.trim() : '';
   if (task.category !== undefined) payload.category = task.category;
@@ -40,44 +44,50 @@ export const taskService = {
   isCloudEnabled: isSupabaseConfigured,
 
   /**
-   * Busca todas as tarefas
+   * Busca todas as tarefas do usuário autenticado
    */
-  async getTasks() {
+  async getTasks(userId = null) {
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('tasks')
           .select('*')
           .order('created_at', { ascending: false });
 
+        if (userId) {
+          query = query.eq('user_id', userId);
+        }
+
+        const { data, error } = await query;
+
         if (error) {
           console.error('Erro ao buscar tarefas do Supabase:', error);
-          // Fallback para storage local em caso de erro de rede
-          return storageService.getTasks();
+          return storageService.getTasks(userId);
         }
 
         const mapped = (data || []).map(mapTaskFromDb);
-        // Atualiza cache local como backup
-        storageService.saveTasks(mapped);
+        // Atualiza cache local isolado por usuário
+        storageService.saveTasks(mapped, userId);
         return mapped;
       } catch (err) {
         console.error('Falha de conexão com Supabase:', err);
-        return storageService.getTasks();
+        return storageService.getTasks(userId);
       }
     }
 
-    return storageService.getTasks();
+    return storageService.getTasks(userId);
   },
 
   /**
-   * Cria uma nova tarefa
+   * Cria uma nova tarefa associada ao usuário
    */
-  async createTask(taskData) {
+  async createTask(taskData, userId = null) {
     const taskId = taskData.id || `task-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const nowIso = new Date().toISOString();
 
     const appTask = {
       id: taskId,
+      userId: userId || taskData.userId || null,
       title: taskData.title.trim(),
       description: taskData.description ? taskData.description.trim() : '',
       category: taskData.category || 'GERAL',
@@ -90,7 +100,7 @@ export const taskService = {
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const dbPayload = mapTaskToDb(appTask);
+        const dbPayload = mapTaskToDb(appTask, userId);
         const { data, error } = await supabase
           .from('tasks')
           .insert([dbPayload])
@@ -99,86 +109,101 @@ export const taskService = {
 
         if (error) {
           console.error('Erro ao inserir tarefa no Supabase:', error);
-          return storageService.createTask(appTask);
+          return storageService.createTask(appTask, userId);
         }
 
         return mapTaskFromDb(data);
       } catch (err) {
         console.error('Falha ao conectar no Supabase ao criar tarefa:', err);
-        return storageService.createTask(appTask);
+        return storageService.createTask(appTask, userId);
       }
     }
 
-    return storageService.createTask(appTask);
+    return storageService.createTask(appTask, userId);
   },
 
   /**
    * Atualiza uma tarefa existente
    */
-  async updateTask(id, updates) {
-    const dbUpdates = mapTaskToDb(updates);
+  async updateTask(id, updates, userId = null) {
+    const dbUpdates = mapTaskToDb(updates, userId);
 
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error } = await supabase
+        let query = supabase
           .from('tasks')
           .update(dbUpdates)
-          .eq('id', id)
-          .select()
-          .single();
+          .eq('id', id);
+
+        if (userId) {
+          query = query.eq('user_id', userId);
+        }
+
+        const { data, error } = await query.select().single();
 
         if (error) {
           console.error('Erro ao atualizar tarefa no Supabase:', error);
-          return storageService.updateTask(id, updates);
+          return storageService.updateTask(id, updates, userId);
         }
 
         return mapTaskFromDb(data);
       } catch (err) {
         console.error('Falha ao conectar no Supabase ao atualizar tarefa:', err);
-        return storageService.updateTask(id, updates);
+        return storageService.updateTask(id, updates, userId);
       }
     }
 
-    return storageService.updateTask(id, updates);
+    return storageService.updateTask(id, updates, userId);
   },
 
   /**
    * Exclui uma tarefa
    */
-  async deleteTask(id) {
+  async deleteTask(id, userId = null) {
     if (isSupabaseConfigured && supabase) {
       try {
-        const { error } = await supabase
+        let query = supabase
           .from('tasks')
           .delete()
           .eq('id', id);
 
+        if (userId) {
+          query = query.eq('user_id', userId);
+        }
+
+        const { error } = await query;
+
         if (error) {
           console.error('Erro ao excluir tarefa do Supabase:', error);
-          return storageService.deleteTask(id);
+          return storageService.deleteTask(id, userId);
         }
 
         return true;
       } catch (err) {
         console.error('Falha ao conectar no Supabase ao excluir tarefa:', err);
-        return storageService.deleteTask(id);
+        return storageService.deleteTask(id, userId);
       }
     }
 
-    return storageService.deleteTask(id);
+    return storageService.deleteTask(id, userId);
   },
 
   /**
-   * Restaura tarefas padrão de demonstração
+   * Restaura tarefas padrão de demonstração para o usuário atual
    */
-  async resetToDefaults() {
-    if (isSupabaseConfigured && supabase) {
+  async resetToDefaults(userId = null) {
+    if (isSupabaseConfigured && supabase && userId) {
       try {
-        // Limpar tarefas atuais
-        await supabase.from('tasks').delete().neq('id', 'none');
+        // Limpar tarefas apenas do usuário atual
+        await supabase.from('tasks').delete().eq('user_id', userId);
         
-        // Inserir padrões
-        const dbTasks = INITIAL_TASKS.map(mapTaskToDb);
+        // Inserir padrões vinculados ao usuário
+        const dbTasks = INITIAL_TASKS.map(t => ({
+          ...mapTaskToDb(t, userId),
+          user_id: userId,
+          id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
+        }));
+
         const { data, error } = await supabase
           .from('tasks')
           .insert(dbTasks)
@@ -186,31 +211,31 @@ export const taskService = {
 
         if (error) {
           console.error('Erro ao restaurar tarefas no Supabase:', error);
-          return storageService.resetToDefaults();
+          return storageService.resetToDefaults(userId);
         }
 
         const mapped = (data || []).map(mapTaskFromDb);
-        storageService.saveTasks(mapped);
+        storageService.saveTasks(mapped, userId);
         return mapped;
       } catch (err) {
         console.error('Falha ao conectar no Supabase ao restaurar tarefas:', err);
-        return storageService.resetToDefaults();
+        return storageService.resetToDefaults(userId);
       }
     }
 
-    return storageService.resetToDefaults();
+    return storageService.resetToDefaults(userId);
   },
 
   /**
-   * Limpa todas as tarefas
+   * Limpa todas as tarefas do usuário atual
    */
-  async clearAllTasks() {
-    if (isSupabaseConfigured && supabase) {
+  async clearAllTasks(userId = null) {
+    if (isSupabaseConfigured && supabase && userId) {
       try {
         const { error } = await supabase
           .from('tasks')
           .delete()
-          .neq('id', 'none');
+          .eq('user_id', userId);
 
         if (error) {
           console.error('Erro ao limpar tarefas no Supabase:', error);
@@ -220,22 +245,27 @@ export const taskService = {
       }
     }
 
-    return storageService.clearAllTasks();
+    return storageService.clearAllTasks(userId);
   },
 
   /**
    * Inscreve-se em mudanças em tempo real do Supabase
    */
-  subscribeToChanges(onRefresh) {
+  subscribeToChanges(userId, onRefresh) {
     if (!isSupabaseConfigured || !supabase) return () => {};
 
     try {
+      const channelName = userId ? `public:tasks:${userId}` : 'public:tasks';
       const channel = supabase
-        .channel('public:tasks')
+        .channel(channelName)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'tasks' },
-          () => {
+          (payload) => {
+            // Se userId informado, valida se afeta o usuário
+            if (userId && payload.new && payload.new.user_id && payload.new.user_id !== userId) {
+              return;
+            }
             if (onRefresh) onRefresh();
           }
         )

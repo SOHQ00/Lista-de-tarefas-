@@ -1,11 +1,21 @@
-# TaskFlow • Lista de Tarefas Moderna
+# TaskFlow • Lista de Tarefas Moderna com Supabase Auth
 
-Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pessoais e profissionais, construído com **React 18**, **Vite**, **Tailwind CSS** e integrado ao **Supabase** para persistência e sincronização em tempo real na nuvem.
+Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pessoais e profissionais, construído com **React 18**, **Vite**, **Tailwind CSS** e integrado ao **Supabase** para autenticação segura, perfis de usuário, Row Level Security (RLS) e sincronização em tempo real na nuvem.
 
 ---
 
 ## 🚀 Funcionalidades Principais
 
+- **Autenticação Segura com Supabase Auth:**
+  - **Login:** Autenticação com e-mail e senha com JWT e persistência de sessão.
+  - **Criação de Conta (Sign Up):** Registro de novos usuários com nome completo, e-mail e senha.
+  - **Recuperação de Senha (Forgot Password):** Envio de link seguro por e-mail para redefinição de senha e formulário dedicado de nova senha.
+  - **Atalho Rápido de Demonstração:** Botão de 1 clique para preencher as credenciais do usuário padrão (*Sophia Amaral*).
+- **Múltiplos Usuários e Isolamento de Tarefas:**
+  - Cada usuário cadastrado possui seu **próprio perfil** na tabela `public.profiles`.
+  - As tarefas na tabela `public.tasks` são vinculadas ao `user_id` do usuário logado.
+  - **Row Level Security (RLS)** ativo no PostgreSQL: Usuários só conseguem visualizar, criar, alterar e excluir suas próprias tarefas.
+  - Menu e modal de perfil com métricas individuais, edição de nome de exibição e opção de redefinição de senha.
 - **CRUD Completo de Tarefas:**
   - Criação rápida com título, descrição, categoria, prioridade e data de vencimento.
   - Edição de tarefas existentes com formulário modal interativo.
@@ -14,8 +24,8 @@ Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pe
 - **Sincronização em Tempo Real (Supabase Cloud):**
   - Persistência direta no banco de dados PostgreSQL via Supabase.
   - Atualizações otimistas na interface (0ms de latência percebida).
-  - Sincronização em tempo real (*Realtime Channels*) entre abas e dispositivos.
-  - Fallback automático e seguro com cache no `localStorage` em caso de perda de conexão.
+  - Sincronização em tempo real (*Realtime Channels*) filtrada por usuário.
+  - Fallback automático e seguro com cache no `localStorage` isolado por `userId` em caso de instabilidade.
 - **Organização e Produtividade:**
   - **Categorização Visual:** *Trabalho*, *Pessoal*, *Estudos*, *Saúde* e *Finanças* com cores e badges distintos.
   - **Níveis de Prioridade:** *Alta*, *Média* e *Baixa* com destaque visual.
@@ -31,11 +41,22 @@ Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pe
 
 ---
 
+## 👤 Usuário de Demonstração Cadastrado
+
+Para testar a aplicação imediatamente, você pode utilizar a conta já configurada:
+
+- **E-mail:** `sophiaamaralsv@gmail.com`
+- **Senha:** `123456`
+
+*(A tela de login já possui um botão "Preencher" que insere essas credenciais automaticamente).*
+
+---
+
 ## 🛠️ Tecnologias Utilizadas
 
 - **Frontend:** [React 18](https://react.dev/)
 - **Build Tool:** [Vite 5](https://vitejs.dev/)
-- **Backend & Database:** [Supabase](https://supabase.com/) (`@supabase/supabase-js`)
+- **Backend & Autenticação:** [Supabase](https://supabase.com/) (`@supabase/supabase-js`)
 - **Estilização:** [Tailwind CSS 3](https://tailwindcss.com/)
 - **Ícones:** [Lucide React](https://lucide.dev/)
 - **Micro-interações:** [Canvas Confetti](https://www.npmjs.com/package/canvas-confetti)
@@ -48,12 +69,15 @@ Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pe
 ```text
 ├── src/
 │   ├── components/
+│   │   ├── Auth/
+│   │   │   └── AuthView.jsx      # Telas de Login, Cadastro e Recuperação de Senha
 │   │   ├── AnalyticsView.jsx     # Dashboard de métricas e produtividade
 │   │   ├── CalendarView.jsx      # Visão em grade de calendário mensal
 │   │   ├── CategoryBadge.jsx     # Tag de identificação de categoria
 │   │   ├── ConfirmModal.jsx      # Modal de confirmação para ações críticas
-│   │   ├── Navbar.jsx            # Barra de navegação com status do Supabase
+│   │   ├── Navbar.jsx            # Barra de navegação com perfil do usuário e status Supabase
 │   │   ├── PriorityBadge.jsx     # Tag de identificação de prioridade
+│   │   ├── ProfileModal.jsx      # Modal de gerenciamento do perfil do usuário
 │   │   ├── TaskFilters.jsx       # Barra de pesquisa e filtros
 │   │   ├── TaskItem.jsx          # Componente individual de tarefa
 │   │   ├── TaskList.jsx          # Lista de tarefas e estados vazios
@@ -61,17 +85,20 @@ Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pe
 │   ├── constants/
 │   │   ├── categories.js         # Configurações de cores e badges de categorias
 │   │   └── priorities.js         # Configurações de prioridades
+│   ├── context/
+│   │   └── AuthContext.jsx       # Contexto e hook useAuth para sessão e perfil
 │   ├── hooks/
-│   │   └── useTasks.js           # Hook customizado de estado, filtros e sincronização
+│   │   └── useTasks.js           # Hook customizado de tarefas isoladas por usuário
 │   ├── services/
-│   │   ├── storageService.js     # Fallback e cache local (LocalStorage)
+│   │   ├── authService.js        # Métodos de autenticação, perfil e recuperação
+│   │   ├── storageService.js     # Fallback e cache local isolado por usuário
 │   │   ├── supabaseClient.js     # Inicialização do cliente Supabase
 │   │   └── taskService.js        # Operações de CRUD e Realtime com o Supabase
 │   ├── App.jsx                   # Componente raiz da aplicação
 │   ├── index.css                 # Estilos globais e tokens de design
-│   └── main.jsx                  # Ponto de entrada React
+│   └── main.jsx                  # Ponto de entrada React com AuthProvider
+├── .env                          # Variáveis de conexão com o Supabase
 ├── .env.example                  # Modelo de variáveis de ambiente
-├── .gitignore                    # Regras de arquivos ignorados no Git
 ├── index.html                    # Documento HTML principal
 ├── package.json                  # Dependências e scripts do projeto
 ├── tailwind.config.js            # Configuração do Tailwind CSS
@@ -80,51 +107,22 @@ Um aplicativo web moderno, intuitivo e completo para gerenciamento de tarefas pe
 
 ---
 
-## ⚙️ Pré-requisitos
+## 💻 Como Rodar o Projeto
 
-- **Node.js** (versão 18.0.0 ou superior)
-- **NPM** (versão 9.0.0 ou superior)
-
----
-
-## 💻 Instalação e Execução
-
-1. **Clone o repositório:**
-   ```bash
-   git clone https://github.com/SOHQ00/lista-tarefas.git
-   cd lista-tarefas
-   ```
-
-2. **Instale as dependências:**
+1. **Instale as dependências:**
    ```bash
    npm install
    ```
 
-3. **Configure as variáveis de ambiente:**
-   Crie um arquivo `.env` na raiz do projeto com base no [.env.example](file:///.env.example):
-   ```bash
-   cp .env.example .env
-   ```
-   Preencha com as credenciais do seu projeto Supabase:
-   ```env
-   VITE_SUPABASE_URL=https://seu-projeto.supabase.co
-   VITE_SUPABASE_ANON_KEY=sua-anon-key-aqui
-   ```
-
-4. **Inicie o servidor de desenvolvimento:**
+2. **Inicie o servidor de desenvolvimento:**
    ```bash
    npm run dev
    ```
    Acesse a aplicação em `http://localhost:3000/`.
 
-5. **Gerar build de produção:**
+3. **Gerar build de produção:**
    ```bash
    npm run build
-   ```
-
-6. **Visualizar build de produção localmente:**
-   ```bash
-   npm run preview
    ```
 
 ---
